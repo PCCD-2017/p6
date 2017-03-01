@@ -10,41 +10,53 @@
 #include <stdlib.h>
 #include <string.h>
 
-extern int errno;
-int msg_queue_id;
 #define MSGPERM 0777
 
-int return_msgsnd;
+/**
+ * int msgsnd(int msqid, const void *msgp, size_t msgsz, int msgflg);
+ *
+ * 1.- The msgsnd() system call appends a copy of the message
+ *     pointed to by msgp to the message queue whose identifier is specified by msqid.
+ *
+ * 2.- If sufficient space is available in the queue, msgsnd() succeeds immediately.
+ *     (The queue capacity is defined by the msg_qbytes field in the associated data
+ *     structure for the message queue. During queue creation this field is initialized
+ *     to MSGMNB bytes, but this limit can be modified using msgctl(2).)
+ *
+ * 3.- msgflag: If insufficient space is available in the queue, then the default behavior
+ *     of msgsnd() is to block until space becomes available. If IPC_NOWAIT is specified
+ *     in msgflg, then the call instead fails with the error EAGAIN.
+ *
+ * @note: A blocked msgsnd() call may also fail if:
+ *
+ *          a) The queue is removed, in which case the system call fails with errno set to EIDRM.
+ *          b) A signal is caught, in which case the system call fails with errno set to EINTR.
+ *             ((msgsnd() is never automatically restarted after being interrupted by a signal handler).
+ *
+ * @note: The msgp argument is a pointer to caller-defined structure of the following general form:
+ *
+ *      struct msgbuf {
+ *          long mtype;       message type, must be > 0
+ *          char mtext[1];    message data
+ *      };
+ */
 
 struct msgbuf {
-    long mtype;	 /* message type, must be > 0 */
+    long mtype;	     /* message type, must be > 0 */
     char mtext[1];	 /* message data */
 };
 
-
 int main(int charc, char *argv[]) {
-    int queue_id = atoi(argv[1]);
-
-    //       int msgsnd(int msqid, const void *msgp, size_t msgsz, int msgflg);
-    //       ssize_t msgrcv(int msqid, void *msgp, size_t msgsz, long msgtyp, int msgflg);
-
-    /*
-     The  mtext  field  is an array (or other structure) whose size is specified by
-       msgsz, a nonnegative integer value.  Messages of zero length (i.e.,  no	mtext
-       field)  are  permitted.	The mtype field must have a strictly positive integer
-       value.  This value can be used by the receiving process for message  selection
-       (see the description of msgrcv() below).
-    */
-
+    int return_msgsnd, queue_id = atoi(argv[1]);
     struct msgbuf msg;
-    msg.mtype = 1;
     char mtext[30] = "Mensaje de prueba, ejercicio 3.";
+
+    msg.mtype = 1;
     strcpy(msg.mtext, mtext);
     size_t msgsz = sizeof(mtext);
 
     return_msgsnd = msgsnd(queue_id, &msg, msgsz, IPC_NOWAIT);
-
-    if(return_msgsnd<0){
+    if(return_msgsnd == -1){
         perror(strerror(errno));
         printf("Ha habido un error enviando un mensaje a la cola de mensajes con id = %d\n", queue_id);
         return 1;
@@ -52,6 +64,5 @@ int main(int charc, char *argv[]) {
         printf("Mensaje enviado con éxito. Cola: \n");
         system("ipcs -q");
     }
-
     return 0;
 }
